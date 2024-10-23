@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"errors"
 )
 
 type book struct {
@@ -36,14 +38,45 @@ func createBook(c *gin.Context) {
 
 func getBookByID(c *gin.Context) {
 	id := c.Param("id")
-	for _, v := range books {
-		if v.ID == id {
-			c.IndentedJSON(http.StatusOK, v)
-			return
-		}
+	book, err := bookByID(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusOK, book)
+		return
 	}
 
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
+}
+
+func bookByID(id string) (*book, error) {
+	for _, v := range books {
+		if v.ID == id {
+			return &v, nil
+		}
+	}
+	return nil, errors.New("book not found")
+}
+
+func checkoutBook(c *gin.Context) {
+	id, ok := c.GetQuery("id")
+	if !ok {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "id not found"})
+		return
+	}
+
+	book, err := bookByID(id)
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "book not found"})
+		return
+	}
+
+	if book.Quantity <= 0 {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "book not available"})
+		return
+	}
+
+	book.Quantity -= 1
+	c.IndentedJSON(http.StatusOK, book)
+
 }
 
 func main() {
@@ -51,5 +84,6 @@ func main() {
 	router.GET("/books", getBooks)
 	router.POST("/books", createBook)
 	router.GET("/books/:id", getBookByID)
+	router.PATCH("/checkout", checkoutBook)
 	router.Run("localhost:8080")
 }
